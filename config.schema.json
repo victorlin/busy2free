@@ -1,0 +1,114 @@
+{
+    "$schema": "http://json-schema.org/draft-07/schema#",
+    "title": "busy2free configuration",
+    "type": "object",
+    "properties": {
+        "sources": {
+            "type": "array",
+            "items": {
+                "type": "object",
+                "properties": {
+                    "name": {
+                        "type": "string"
+                    },
+                    "url": {
+                        "type": "string",
+                        "format": "uri"
+                    }
+                },
+                "required": [
+                    "name",
+                    "url"
+                ]
+            }
+        },
+        "searchWindow": {
+            "type": "object",
+            "properties": {
+                "start": {
+                    "type": "string",
+                    "format": "date-time",
+                    "description": "Start date for the search window. (default: today)"
+                },
+                "end": {
+                    "type": "string",
+                    "format": "date-time",
+                    "description": "End date for the search window."
+                },
+                "weekdays": {
+                    "type": "object",
+                    "properties": {
+                        "startHour": {
+                            "type": "integer",
+                            "minimum": 0,
+                            "maximum": 23
+                        },
+                        "endHour": {
+                            "type": "integer",
+                            "minimum": 0,
+                            "maximum": 24
+                        }
+                    },
+                    "required": [
+                        "startHour",
+                        "endHour"
+                    ]
+                },
+                "weekends": {
+                    "type": "object",
+                    "properties": {
+                        "startHour": {
+                            "type": "integer",
+                            "minimum": 0,
+                            "maximum": 23
+                        },
+                        "endHour": {
+                            "type": "integer",
+                            "minimum": 0,
+                            "maximum": 24
+                        }
+                    },
+                    "required": [
+                        "startHour",
+                        "endHour"
+                    ]
+                }
+            },
+            "required": [
+                "end",
+                "weekdays",
+                "weekends"
+            ]
+        },
+        "minDurationMinutes": {
+            "type": "integer",
+            "minimum": 1
+        },
+        "slotStepMinutes": {
+            "type": "integer",
+            "minimum": 1
+        },
+        "outputs": {
+            "type": "object",
+            "properties": {
+                "ics": {
+                    "type": "string"
+                },
+                "json": {
+                    "type": "string"
+                }
+            },
+            "required": [
+                "ics",
+                "json"
+            ]
+        }
+    },
+    "required": [
+        "sources",
+        "searchWindow",
+        "minDurationMinutes",
+        "slotStepMinutes",
+        "outputs"
+    ]
+}
