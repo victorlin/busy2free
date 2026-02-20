@@ -14,6 +14,65 @@ import {
     eachDayOfInterval,
 } from 'date-fns';
 
+function getTimeZoneParts(date, timeZone) {
+    const dtf = new Intl.DateTimeFormat('en-CA', {
+        timeZone,
+        year: 'numeric',
+        month: '2-digit',
+        day: '2-digit',
+        hour: '2-digit',
+        minute: '2-digit',
+        second: '2-digit',
+        hour12: false,
+    });
+    const parts = {};
+    for (const part of dtf.formatToParts(date)) {
+        if (part.type !== 'literal') {
+            parts[part.type] = part.value;
+        }
+    }
+    return {
+        year: Number(parts.year),
+        month: Number(parts.month),
+        day: Number(parts.day),
+        hour: Number(parts.hour),
+        minute: Number(parts.minute),
+        second: Number(parts.second),
+    };
+}
+
+function formatOffsetMinutes(offsetMinutes) {
+    const sign = offsetMinutes >= 0 ? '+' : '-';
+    const abs = Math.abs(offsetMinutes);
+    const hours = String(Math.floor(abs / 60)).padStart(2, '0');
+    const minutes = String(abs % 60).padStart(2, '0');
+    return `${sign}${hours}:${minutes}`;
+}
+
+function formatInTimeZone(date, timeZone) {
+    const parts = getTimeZoneParts(date, timeZone);
+    const utcMs = Date.UTC(
+        parts.year,
+        parts.month - 1,
+        parts.day,
+        parts.hour,
+        parts.minute,
+        parts.second
+    );
+    const offsetMinutes = Math.round((utcMs - date.getTime()) / 60000);
+    const yyyy = String(parts.year).padStart(4, '0');
+    const mm = String(parts.month).padStart(2, '0');
+    const dd = String(parts.day).padStart(2, '0');
+    const hh = String(parts.hour).padStart(2, '0');
+    const min = String(parts.minute).padStart(2, '0');
+    const ss = String(parts.second).padStart(2, '0');
+    return `${yyyy}-${mm}-${dd}T${hh}:${min}:${ss}${formatOffsetMinutes(offsetMinutes)}`;
+}
+
+function toTimeZoneArray(date, timeZone) {
+    const parts = getTimeZoneParts(date, timeZone);
+    return [parts.year, parts.month, parts.day, parts.hour, parts.minute];
+}
 
 const config = JSON.parse(fs.readFileSync(new URL('./config.json', import.meta.url), 'utf-8'));
 
@@ -43,12 +102,17 @@ async function run() {
         );
 
         // Write outputs
-        fs.writeFileSync(config.outputs.json, JSON.stringify(results, null, 2));
+        const jsonResults = results.map(result => ({
+            start: formatInTimeZone(result.start, config.outputTimeZone),
+            end: formatInTimeZone(result.end, config.outputTimeZone),
+            source: result.source,
+        }));
+        fs.writeFileSync(config.outputs.json, JSON.stringify(jsonResults, null, 2));
         console.log(`✓ Generated ${config.outputs.json}`);
 
         const icsEvents = results.map(e => ({
-            start: [e.start.getFullYear(), e.start.getMonth() + 1, e.start.getDate(), e.start.getHours(), e.start.getMinutes()],
-            end: [e.end.getFullYear(), e.end.getMonth() + 1, e.end.getDate(), e.end.getHours(), e.end.getMinutes()],
+            start: toTimeZoneArray(e.start, config.outputTimeZone),
+            end: toTimeZoneArray(e.end, config.outputTimeZone),
             title: `Free: ${e.source}`,
         }));
 
@@ -114,7 +178,11 @@ export function findAllGaps(sourceData, startRange, endRange, minMinutes) {
     for (const source of sourceData) {
         allGapEvents.push(...findGaps(source, startRange, endRange, minMinutes));
     }
-    return allGapEvents.sort((a, b) => a.start - b.start);
+    return allGapEvents.sort((a, b) => {
+        const startDiff = a.start - b.start;
+        if (startDiff !== 0) return startDiff;
+        return String(a.source).localeCompare(String(b.source));
+    });
 }
 
 /**

@@ -102,6 +102,10 @@
                 "ics",
                 "json"
             ]
+        },
+        "outputTimeZone": {
+            "type": "string",
+            "description": "The time zone for output files (e.g., America/Los_Angeles)."
         }
     },
     "required": [
@@ -109,6 +113,7 @@
         "searchWindow",
         "minDurationMinutes",
         "slotStepMinutes",
-        "outputs"
+        "outputs",
+        "outputTimeZone"
     ]
 }
