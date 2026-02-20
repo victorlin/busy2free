@@ -14,6 +14,13 @@
                     "url": {
                         "type": "string",
                         "format": "uri"
+                    },
+                    "searchWindow": {
+                        "$ref": "#/definitions/searchWindow"
+                    },
+                    "minDurationMinutes": {
+                        "type": "integer",
+                        "minimum": 1
                     }
                 },
                 "required": [
@@ -23,61 +30,17 @@
             }
         },
         "searchWindow": {
-            "type": "object",
-            "properties": {
-                "start": {
-                    "type": "string",
-                    "format": "date-time",
-                    "description": "Start date for the search window. (default: today)"
+            "allOf": [
+                {
+                    "$ref": "#/definitions/searchWindow"
                 },
-                "end": {
-                    "type": "string",
-                    "format": "date-time",
-                    "description": "End date for the search window."
-                },
-                "weekdays": {
-                    "type": "object",
-                    "properties": {
-                        "startHour": {
-                            "type": "integer",
-                            "minimum": 0,
-                            "maximum": 23
-                        },
-                        "endHour": {
-                            "type": "integer",
-                            "minimum": 0,
-                            "maximum": 24
-                        }
-                    },
+                {
                     "required": [
-                        "startHour",
-                        "endHour"
-                    ]
-                },
-                "weekends": {
-                    "type": "object",
-                    "properties": {
-                        "startHour": {
-                            "type": "integer",
-                            "minimum": 0,
-                            "maximum": 23
-                        },
-                        "endHour": {
-                            "type": "integer",
-                            "minimum": 0,
-                            "maximum": 24
-                        }
-                    },
-                    "required": [
-                        "startHour",
-                        "endHour"
+                        "end",
+                        "weekdays",
+                        "weekends"
                     ]
                 }
-            },
-            "required": [
-                "end",
-                "weekdays",
-                "weekends"
             ]
         },
         "minDurationMinutes": {
@@ -115,5 +78,51 @@
         "slotStepMinutes",
         "outputs",
         "outputTimeZone"
-    ]
+    ],
+    "definitions": {
+        "hourRange": {
+            "type": "object",
+            "properties": {
+                "startHour": {
+                    "type": "integer",
+                    "minimum": 0,
+                    "maximum": 23
+                },
+                "endHour": {
+                    "type": "integer",
+                    "minimum": 0,
+                    "maximum": 24
+                }
+            }
+        },
+        "searchWindow": {
+            "type": "object",
+            "properties": {
+                "start": {
+                    "type": "string",
+                    "format": "date-time",
+                    "description": "Start date for the search window. (default: today)"
+                },
+                "end": {
+                    "type": "string",
+                    "format": "date-time",
+                    "description": "End date for the search window."
+                },
+                "weekdays": {
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/hourRange"
+                        }
+                    ]
+                },
+                "weekends": {
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/hourRange"
+                        }
+                    ]
+                }
+            }
+        }
+    }
 }
