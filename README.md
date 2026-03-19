@@ -19,6 +19,7 @@ Generate an availability feed from "busy" calendar feeds.
 Define settings in a JSON config file:
 - `sources`: iCal URLs.
 - `minDurationMinutes`: Minimum duration of availability events.
+- `timeZone`: Time zone used to interpret search-window hours and format output timestamps.
 - `searchWindow`: Search window settings.
   - `start`: Start date for the search window. (optional; default: today)
   - `end`: End date for the search window.

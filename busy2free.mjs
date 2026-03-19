@@ -3,17 +3,14 @@ import { createEvents } from 'ics';
 import fs from 'fs';
 import path from 'path';
 import { pathToFileURL } from 'url';
+import { fromZonedTime } from 'date-fns-tz';
 import {
     addDays,
     isBefore,
     isAfter,
     startOfDay,
     endOfDay,
-    setHours,
-    setMinutes,
-    isWeekend,
     areIntervalsOverlapping,
-    eachDayOfInterval,
 } from 'date-fns';
 
 function getTimeZoneParts(date, timeZone) {
@@ -71,9 +68,61 @@ function formatInTimeZone(date, timeZone) {
     return `${yyyy}-${mm}-${dd}T${hh}:${min}:${ss}${formatOffsetMinutes(offsetMinutes)}`;
 }
 
-function toTimeZoneArray(date, timeZone) {
-    const parts = getTimeZoneParts(date, timeZone);
-    return [parts.year, parts.month, parts.day, parts.hour, parts.minute];
+function toUtcArray(date) {
+    return [
+        date.getUTCFullYear(),
+        date.getUTCMonth() + 1,
+        date.getUTCDate(),
+        date.getUTCHours(),
+        date.getUTCMinutes(),
+    ];
+}
+
+function pad(number) {
+    return String(number).padStart(2, '0');
+}
+
+function zonedPartsToIsoLocal(parts, hour = 0, minute = 0, second = 0) {
+    return `${parts.year}-${pad(parts.month)}-${pad(parts.day)}T${pad(hour)}:${pad(minute)}:${pad(second)}`;
+}
+
+function addDaysToParts(parts, days) {
+    const shifted = new Date(Date.UTC(parts.year, parts.month - 1, parts.day + days));
+    return {
+        year: shifted.getUTCFullYear(),
+        month: shifted.getUTCMonth() + 1,
+        day: shifted.getUTCDate(),
+    };
+}
+
+function toZonedInstant(parts, hour, minute, timeZone) {
+    if (hour === 24) {
+        const nextDay = addDaysToParts(parts, 1);
+        return fromZonedTime(zonedPartsToIsoLocal(nextDay), timeZone);
+    }
+
+    return fromZonedTime(zonedPartsToIsoLocal(parts, hour, minute), timeZone);
+}
+
+function eachDayInTimeZone(start, end, timeZone) {
+    const startParts = getTimeZoneParts(start, timeZone);
+    const endParts = getTimeZoneParts(end, timeZone);
+    const days = [];
+    let cursor = {
+        year: startParts.year,
+        month: startParts.month,
+        day: startParts.day,
+    };
+    const endKey = `${endParts.year}-${pad(endParts.month)}-${pad(endParts.day)}`;
+
+    while (true) {
+        days.push(cursor);
+        const cursorKey = `${cursor.year}-${pad(cursor.month)}-${pad(cursor.day)}`;
+        if (cursorKey === endKey) {
+            return days;
+        }
+        cursor = addDaysToParts(cursor, 1);
+    }
 }
 
 function loadConfig(configUrl) {
@@ -139,21 +188,24 @@ async function run(configPath = process.argv[2]) {
             config.searchWindow.end,
             config.minDurationMinutes,
             config.searchWindow,
-            config.slotStepMinutes
+            config.slotStepMinutes,
+            config.timeZone
         );
 
         // Write outputs
         const jsonResults = results.map(result => ({
-            start: formatInTimeZone(result.start, config.outputTimeZone),
-            end: formatInTimeZone(result.end, config.outputTimeZone),
+            start: formatInTimeZone(result.start, config.timeZone),
+            end: formatInTimeZone(result.end, config.timeZone),
             source: result.source,
         }));
         fs.writeFileSync(config.outputs.json, JSON.stringify(jsonResults, null, 2));
         console.log(`✓ Generated ${config.outputs.json}`);
 
         const icsEvents = results.map(e => ({
-            start: toTimeZoneArray(e.start, config.outputTimeZone),
-            end: toTimeZoneArray(e.end, config.outputTimeZone),
+            start: toUtcArray(e.start),
+            end: toUtcArray(e.end),
+            startInputType: 'utc',
+            endInputType: 'utc',
             title: `Free: ${e.source}`,
         }));
 
@@ -214,13 +266,13 @@ export function parseEvents(events, dateRange) {
 /**
  * Combine event gaps from all sources.
  */
-export function findAllGaps(sourceData, startRange, endRange, globalMinMinutes, defaultSearchWindow, slotStepMinutes) {
+export function findAllGaps(sourceData, startRange, endRange, globalMinMinutes, defaultSearchWindow, slotStepMinutes, timeZone) {
     const allGapEvents = [];
     for (const source of sourceData) {
         const sStart = source.searchWindow?.start || startRange;
         const sEnd = source.searchWindow?.end || endRange;
         const sMinMinutes = source.minDurationMinutes ?? globalMinMinutes;
-        allGapEvents.push(...findGaps(source, sStart, sEnd, sMinMinutes, defaultSearchWindow, slotStepMinutes));
+        allGapEvents.push(...findGaps(source, sStart, sEnd, sMinMinutes, defaultSearchWindow, slotStepMinutes, timeZone));
     }
     return allGapEvents.sort((a, b) => {
         const startDiff = a.start - b.start;
@@ -232,12 +284,12 @@ export function findAllGaps(sourceData, startRange, endRange, globalMinMinutes, 
 /**
  * Find event gaps from a source.
  */
-export function findGaps(source, startRange, endRange, minMinutes, defaultSearchWindow, slotStepMinutes) {
+export function findGaps(source, startRange, endRange, minMinutes, defaultSearchWindow, slotStepMinutes, timeZone = 'UTC') {
     const gaps = [];
-    const days = eachDayOfInterval({ start: startRange, end: endRange });
+    const days = eachDayInTimeZone(startRange, endRange, timeZone);
 
     for (const day of days) {
-        const window = getSearchWindow(day, source.searchWindow, defaultSearchWindow);
+        const window = getSearchWindow(day, source.searchWindow, defaultSearchWindow, timeZone);
 
         // Snap start to next slot boundary
         let current = isAfter(window.start, startRange) ? window.start : startRange;
@@ -288,8 +340,9 @@ export function findGaps(source, startRange, endRange, minMinutes, defaultSearch
 /**
  * Returns the search window for a given day.
  */
-function getSearchWindow(day, sourceSearchWindow, defaultSearchWindow) {
-    const windowConfig = isWeekend(day)
+function getSearchWindow(dayParts, sourceSearchWindow, defaultSearchWindow, timeZone) {
+    const weekday = new Date(Date.UTC(dayParts.year, dayParts.month - 1, dayParts.day)).getUTCDay();
+    const windowConfig = weekday === 0 || weekday === 6
         ? {
             startHour: sourceSearchWindow?.weekends?.startHour ?? defaultSearchWindow.weekends.startHour,
             endHour: sourceSearchWindow?.weekends?.endHour ?? defaultSearchWindow.weekends.endHour,
@@ -299,8 +352,8 @@ function getSearchWindow(day, sourceSearchWindow, defaultSearchWindow) {
             endHour: sourceSearchWindow?.weekdays?.endHour ?? defaultSearchWindow.weekdays.endHour,
         };
 
-    const start = setMinutes(setHours(startOfDay(day), windowConfig.startHour), 0);
-    const end = setMinutes(setHours(startOfDay(day), windowConfig.endHour), 0);
+    const start = toZonedInstant(dayParts, windowConfig.startHour, 0, timeZone);
+    const end = toZonedInstant(dayParts, windowConfig.endHour, 0, timeZone);
     return { start, end };
 }
 

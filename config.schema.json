@@ -66,9 +66,9 @@
                 "json"
             ]
         },
-        "outputTimeZone": {
+        "timeZone": {
             "type": "string",
-            "description": "The time zone for output files (e.g., America/Los_Angeles)."
+            "description": "The time zone used to define search windows and JSON output (e.g., America/Los_Angeles)."
         }
     },
     "required": [
@@ -77,7 +77,7 @@
         "minDurationMinutes",
         "slotStepMinutes",
         "outputs",
-        "outputTimeZone"
+        "timeZone"
     ],
     "definitions": {
         "hourRange": {

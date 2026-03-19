@@ -40,5 +40,5 @@
         "ics": "dance-studios.ics",
         "json": "dance-studios.json"
     },
-    "outputTimeZone": "America/Los_Angeles"
+    "timeZone": "America/Los_Angeles"
 }

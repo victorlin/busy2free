@@ -11,6 +11,7 @@ const testSearchWindow = {
     weekends: { startHour: 18, endHour: 24 },
 };
 const testSlotStepMinutes = 30;
+const testTimeZone = 'America/Los_Angeles';
 
 function assert(condition, message) {
     if (!condition) {
@@ -46,7 +47,7 @@ function testDurationFilter() {
         ]
     }];
 
-    const results = findAllGaps(mockSourceData, monday, endOfDay(monday), 90, testSearchWindow, testSlotStepMinutes);
+    const results = findAllGaps(mockSourceData, monday, endOfDay(monday), 90, testSearchWindow, testSlotStepMinutes, testTimeZone);
     assert(results.length === 1, `Expected 1 gap (7-10pm), got ${results.length}`);
     assert(results[0].start.getHours() === 19 && results[0].end.getHours() === 22, 'Remaining gap should be 7pm-10pm');
     console.log('✅ Duration filter passed');
@@ -59,7 +60,7 @@ function testOverlaps() {
         { name: 'SourceB', busy: [] }
     ];
 
-    const results = findAllGaps(mockSourceData, monday, endOfDay(monday), 0, testSearchWindow, testSlotStepMinutes);
+    const results = findAllGaps(mockSourceData, monday, endOfDay(monday), 0, testSearchWindow, testSlotStepMinutes, testTimeZone);
     const monday1800 = results.filter(s => format(s.start, 'HH:mm') === '18:00');
     assert(monday1800.length === 2, `Expected 2 overlapping gap events, got ${monday1800.length}`);
     console.log('✅ Independent overlaps passed');
@@ -73,7 +74,7 @@ function testSingleSource() {
             { start: setHours(monday, 10), end: setHours(monday, 11) }
         ]
     };
-    const results = findGaps(mockSource, monday, endOfDay(monday), 60, testSearchWindow, testSlotStepMinutes);
+    const results = findGaps(mockSource, monday, endOfDay(monday), 60, testSearchWindow, testSlotStepMinutes, testTimeZone);
     assert(results.length > 0, 'Should find gaps for single source');
     assert(results.some(r => r.source === 'Single'), 'Gap should have source name');
     console.log('✅ Single source passed');
