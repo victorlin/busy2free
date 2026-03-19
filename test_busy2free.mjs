@@ -1,4 +1,4 @@
-import { findGaps, findAllGaps, parseEvents } from './busy2free.mjs';
+import { findGaps, findAllGaps, parseEvents, generateUid } from './busy2free.mjs';
 import { startOfDay, addDays, setHours, format, endOfDay } from 'date-fns';
 
 const today = startOfDay(new Date());
@@ -80,9 +80,39 @@ function testSingleSource() {
     console.log('✅ Single source passed');
 }
 
+function testDeterministicUid() {
+    console.log('Testing Deterministic ICS UID...');
+    const slot = {
+        source: 'Calendar A',
+        start: setHours(monday, 19),
+        end: setHours(monday, 20),
+    };
+    const sameSlot = {
+        source: 'Calendar A',
+        start: new Date(slot.start),
+        end: new Date(slot.end),
+    };
+    const shiftedSlot = {
+        source: 'Calendar A',
+        start: setHours(monday, 20),
+        end: setHours(monday, 21),
+    };
+
+    assert(
+        generateUid(slot) === generateUid(sameSlot),
+        'Same source and time window should produce the same UID'
+    );
+    assert(
+        generateUid(slot) !== generateUid(shiftedSlot),
+        'Different time windows should produce different UIDs'
+    );
+    console.log('✅ Deterministic ICS UID passed');
+}
+
 console.log('--- busy2free Test Suite ---\n');
 testRecurrence();
 testDurationFilter();
 testOverlaps();
 testSingleSource();
+testDeterministicUid();
 console.log('\n✨ ALL STABLE ARCHITECTURE TESTS PASSED');

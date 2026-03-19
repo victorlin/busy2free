@@ -1,5 +1,6 @@
 import ical from 'node-ical';
 import { createEvents } from 'ics';
+import crypto from 'crypto';
 import fs from 'fs';
 import path from 'path';
 import { pathToFileURL } from 'url';
@@ -76,6 +77,16 @@ function toUtcArray(date) {
         date.getUTCHours(),
         date.getUTCMinutes(),
     ];
+}
+
+export function generateUid(event) {
+    const identity = [
+        event.source,
+        event.start.toISOString(),
+        event.end.toISOString(),
+    ].join('|');
+    const hash = crypto.createHash('sha256').update(identity).digest('hex').slice(0, 24);
+    return `${hash}@busy2free.local`;
 }
 
 function pad(number) {
@@ -207,6 +218,7 @@ async function run(configPath = process.argv[2]) {
             startInputType: 'utc',
             endInputType: 'utc',
             title: `Free: ${e.source}`,
+            uid: generateUid(e),
         }));
 
         createEvents(icsEvents, (err, val) => {
