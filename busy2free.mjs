@@ -1,6 +1,8 @@
 import ical from 'node-ical';
 import { createEvents } from 'ics';
 import fs from 'fs';
+import path from 'path';
+import { pathToFileURL } from 'url';
 import {
     addDays,
     isBefore,
@@ -74,29 +76,40 @@ function toTimeZoneArray(date, timeZone) {
     return [parts.year, parts.month, parts.day, parts.hour, parts.minute];
 }
 
-const config = JSON.parse(fs.readFileSync(new URL('./config.json', import.meta.url), 'utf-8'));
+function loadConfig(configUrl) {
+    const config = JSON.parse(fs.readFileSync(configUrl, 'utf-8'));
 
-// Parse dates and handle optional start
-config.searchWindow.start = config.searchWindow.start ? new Date(config.searchWindow.start) : new Date();
-config.searchWindow.end = new Date(config.searchWindow.end);
+    // Parse dates and handle optional start
+    config.searchWindow.start = config.searchWindow.start ? new Date(config.searchWindow.start) : new Date();
+    config.searchWindow.end = new Date(config.searchWindow.end);
+
+    return config;
+}
+
+function resolveConfigUrl(configPath) {
+    if (!configPath) {
+        throw new Error('Usage: node busy2free.mjs <config-path>');
+    }
+
+    return pathToFileURL(path.resolve(process.cwd(), configPath));
+}
 
 /**
  * Merges source-specific search window with global config.
  */
-function getEffectiveSearchWindow(source) {
-    const base = config.searchWindow;
+function getEffectiveSearchWindow(source, defaultSearchWindow) {
     const override = source.searchWindow || {};
 
     return {
-        start: override.start ? new Date(override.start) : base.start,
-        end: override.end ? new Date(override.end) : base.end,
+        start: override.start ? new Date(override.start) : defaultSearchWindow.start,
+        end: override.end ? new Date(override.end) : defaultSearchWindow.end,
         weekdays: {
-            startHour: override.weekdays?.startHour ?? base.weekdays.startHour,
-            endHour: override.weekdays?.endHour ?? base.weekdays.endHour,
+            startHour: override.weekdays?.startHour ?? defaultSearchWindow.weekdays.startHour,
+            endHour: override.weekdays?.endHour ?? defaultSearchWindow.weekdays.endHour,
         },
         weekends: {
-            startHour: override.weekends?.startHour ?? base.weekends.startHour,
-            endHour: override.weekends?.endHour ?? base.weekends.endHour,
+            startHour: override.weekends?.startHour ?? defaultSearchWindow.weekends.startHour,
+            endHour: override.weekends?.endHour ?? defaultSearchWindow.weekends.endHour,
         }
     };
 }
@@ -104,12 +117,14 @@ function getEffectiveSearchWindow(source) {
 /**
  * Main execution flow.
  */
-async function run() {
+async function run(configPath = process.argv[2]) {
     try {
+        const config = loadConfig(resolveConfigUrl(configPath));
+
         const sourceData = await Promise.all(config.sources.map(async (s) => {
             console.log(`Processing feed: ${s.name}...`);
             const events = await ical.async.fromURL(s.url);
-            const effectiveWindow = getEffectiveSearchWindow(s);
+            const effectiveWindow = getEffectiveSearchWindow(s, config.searchWindow);
             return {
                 name: s.name,
                 busy: parseEvents(events, { start: effectiveWindow.start, end: effectiveWindow.end }),
@@ -122,7 +137,9 @@ async function run() {
             sourceData,
             config.searchWindow.start,
             config.searchWindow.end,
-            config.minDurationMinutes
+            config.minDurationMinutes,
+            config.searchWindow,
+            config.slotStepMinutes
         );
 
         // Write outputs
@@ -197,13 +214,13 @@ export function parseEvents(events, dateRange) {
 /**
  * Combine event gaps from all sources.
  */
-export function findAllGaps(sourceData, startRange, endRange, globalMinMinutes) {
+export function findAllGaps(sourceData, startRange, endRange, globalMinMinutes, defaultSearchWindow, slotStepMinutes) {
     const allGapEvents = [];
     for (const source of sourceData) {
         const sStart = source.searchWindow?.start || startRange;
         const sEnd = source.searchWindow?.end || endRange;
         const sMinMinutes = source.minDurationMinutes ?? globalMinMinutes;
-        allGapEvents.push(...findGaps(source, sStart, sEnd, sMinMinutes));
+        allGapEvents.push(...findGaps(source, sStart, sEnd, sMinMinutes, defaultSearchWindow, slotStepMinutes));
     }
     return allGapEvents.sort((a, b) => {
         const startDiff = a.start - b.start;
@@ -215,22 +232,22 @@ export function findAllGaps(sourceData, startRange, endRange, globalMinMinutes) 
 /**
  * Find event gaps from a source.
  */
-export function findGaps(source, startRange, endRange, minMinutes) {
+export function findGaps(source, startRange, endRange, minMinutes, defaultSearchWindow, slotStepMinutes) {
     const gaps = [];
     const days = eachDayOfInterval({ start: startRange, end: endRange });
 
     for (const day of days) {
-        const window = getSearchWindow(day, source.searchWindow);
+        const window = getSearchWindow(day, source.searchWindow, defaultSearchWindow);
 
         // Snap start to next slot boundary
         let current = isAfter(window.start, startRange) ? window.start : startRange;
-        const gridMs = config.slotStepMinutes * 60 * 1000;
+        const gridMs = slotStepMinutes * 60 * 1000;
         if (current.getTime() % gridMs !== 0) {
             current = new Date(Math.ceil(current.getTime() / gridMs) * gridMs);
         }
 
         while (isBefore(current, window.end)) {
-            const slotEnd = new Date(current.getTime() + config.slotStepMinutes * 60000);
+            const slotEnd = new Date(current.getTime() + slotStepMinutes * 60000);
             if (isAfter(slotEnd, window.end)) break;
 
             const isBusy = source.busy.some(interval =>
@@ -271,17 +288,15 @@ export function findGaps(source, startRange, endRange, minMinutes) {
 /**
  * Returns the search window for a given day.
  */
-function getSearchWindow(day, sourceSearchWindow) {
-    const base = config.searchWindow;
-
+function getSearchWindow(day, sourceSearchWindow, defaultSearchWindow) {
     const windowConfig = isWeekend(day)
         ? {
-            startHour: sourceSearchWindow?.weekends?.startHour ?? base.weekends.startHour,
-            endHour: sourceSearchWindow?.weekends?.endHour ?? base.weekends.endHour,
+            startHour: sourceSearchWindow?.weekends?.startHour ?? defaultSearchWindow.weekends.startHour,
+            endHour: sourceSearchWindow?.weekends?.endHour ?? defaultSearchWindow.weekends.endHour,
         }
         : {
-            startHour: sourceSearchWindow?.weekdays?.startHour ?? base.weekdays.startHour,
-            endHour: sourceSearchWindow?.weekdays?.endHour ?? base.weekdays.endHour,
+            startHour: sourceSearchWindow?.weekdays?.startHour ?? defaultSearchWindow.weekdays.startHour,
+            endHour: sourceSearchWindow?.weekdays?.endHour ?? defaultSearchWindow.weekdays.endHour,
         };
 
     const start = setMinutes(setHours(startOfDay(day), windowConfig.startHour), 0);

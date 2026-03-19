@@ -16,7 +16,7 @@ Generate an availability feed from "busy" calendar feeds.
 
 ## Configuration
 
-Define settings in a `config.json` file:
+Define settings in a JSON config file:
 - `sources`: iCal URLs.
 - `minDurationMinutes`: Minimum duration of availability events.
 - `searchWindow`: Search window settings.
@@ -30,7 +30,7 @@ Define settings in a `config.json` file:
 Fetch input feeds and generate outputs.
 
 ```bash
-npm run make
+npm run make <config.json>
 ```
 
 Run tests.
