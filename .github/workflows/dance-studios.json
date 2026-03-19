@@ -1,0 +1,44 @@
+{
+    "$schema": "../../config.schema.json",
+    "sources": [
+        {
+            "name": "Pitch",
+            "url": "https://calendar.google.com/calendar/ical/k1kas5rgnvudbo25qsb6kok378%40group.calendar.google.com/public/basic.ics"
+        },
+        {
+            "name": "Yaw",
+            "url": "https://calendar.google.com/calendar/ical/8gm9oq9mvp4hae65bfi80egsas%40group.calendar.google.com/public/basic.ics"
+        },
+        {
+            "name": "Base",
+            "url": "https://calendar.google.com/calendar/ical/3mp5cqimsd3u82f99953i18rfk%40group.calendar.google.com/public/basic.ics",
+            "minDurationMinutes": 120,
+            "searchWindow": {
+                "weekdays": {
+                    "endHour": 22
+                },
+                "weekends": {
+                    "endHour": 22
+                }
+            }
+        }
+    ],
+    "searchWindow": {
+        "end": "2026-04-05T00:00:00Z",
+        "weekdays": {
+            "startHour": 18,
+            "endHour": 24
+        },
+        "weekends": {
+            "startHour": 8,
+            "endHour": 24
+        }
+    },
+    "minDurationMinutes": 60,
+    "slotStepMinutes": 30,
+    "outputs": {
+        "ics": "dance-studios.ics",
+        "json": "dance-studios.json"
+    },
+    "outputTimeZone": "America/Los_Angeles"
+}

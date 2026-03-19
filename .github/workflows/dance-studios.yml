@@ -1,0 +1,67 @@
+name: dance studios
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: "0 * * * *"
+
+# Sets permissions of the GITHUB_TOKEN to allow deployment to GitHub Pages
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: publish-pages
+  cancel-in-progress: true
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    permissions:
+      contents: read
+      pages: write
+      id-token: write
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - run: npm ci
+
+      - run: npm run make -- .github/workflows/dance-studios.json
+
+      - name: Prepare GitHub Pages content
+        run: |
+          mkdir -p dist
+          cp dance-studios.ics dist/dance-studios.ics
+          touch dist/.nojekyll
+          cat <<'EOF' > dist/index.html
+          <!doctype html>
+          <html lang="en">
+            <head>
+              <meta charset="utf-8">
+              <meta name="viewport" content="width=device-width, initial-scale=1">
+              <title>busy2free</title>
+            </head>
+            <body>
+              <p><a href="./dance-studios.ics">dance-studios.ics</a></p>
+            </body>
+          </html>
+          EOF
+
+      - uses: actions/configure-pages@v5
+
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: ./dist
+
+      - id: deployment
+        uses: actions/deploy-pages@v4
