@@ -24,7 +24,7 @@
         }
     ],
     "searchWindow": {
-        "end": "2026-04-05T00:00:00Z",
+        "end": "2027-01-31T00:00:00Z",
         "weekdays": {
             "startHour": 18,
             "endHour": 24
